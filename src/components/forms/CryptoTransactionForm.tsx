@@ -293,18 +293,18 @@ export default function CryptoTransactionForm({
       {showPrice && (
         <Input
           id="preco"
-          label="Preço unitário (BRL)"
+          label="Preço unitário (USD)"
           type="text"
           inputMode="decimal"
           value={precoUnitario}
           onChange={(e) => setPrecoUnitario(e.target.value)}
-          placeholder="0,00"
+          placeholder="0.00"
         />
       )}
 
       <Input
         id="taxa_fee"
-        label="Taxa (BRL, opcional)"
+        label="Taxa (USD, opcional)"
         type="text"
         inputMode="decimal"
         value={taxa}

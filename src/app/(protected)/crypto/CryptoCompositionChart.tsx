@@ -4,6 +4,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recha
 
 const COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#a855f7", "#14b8a6", "#eab308"];
 
+function formatUSD(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
 interface Props {
   data: { name: string; value: number }[];
 }
@@ -36,10 +40,7 @@ export default function CryptoCompositionChart({ data }: Props) {
             borderRadius: "8px",
             fontSize: "12px",
           }}
-          formatter={(value: any) => [
-            new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value)),
-            "Valor",
-          ]}
+          formatter={(value: any) => [formatUSD(Number(value)), "USD"]}
           labelStyle={{ color: "#a1a1aa" }}
         />
         <Legend

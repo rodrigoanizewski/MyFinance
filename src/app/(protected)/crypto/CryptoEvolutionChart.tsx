@@ -4,13 +4,17 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import { formatCurrency } from "@/lib/utils/format";
+
+function formatUSD(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact" }).format(value);
+}
 
 interface Props {
   symbol: string;
+  currency?: "USD" | "BRL";
 }
 
-export default function CryptoEvolutionChart({ symbol }: Props) {
+export default function CryptoEvolutionChart({ symbol, currency = "USD" }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -25,24 +29,25 @@ export default function CryptoEvolutionChart({ symbol }: Props) {
         .limit(200);
 
       if (history) {
+        const priceKey = currency === "USD" ? "preco_usd" : "preco_brl";
         setData(
           history.map((h) => ({
             date: new Date(h.timestamp).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-            preco: h.preco_brl,
+            preco: h[priceKey],
           })),
         );
       }
       setLoading(false);
     };
     fetchData();
-  }, [symbol, supabase]);
+  }, [symbol, currency, supabase]);
 
   if (loading) return <LoadingSpinner className="py-12" />;
 
   if (!data.length) {
     return (
       <p className="py-8 text-center text-sm text-zinc-500">
-        Aguardando dados de preço. A Edge Function do CoinGecko atualizará automaticamente.
+        Aguardando dados. Sincronize os preços primeiro.
       </p>
     );
   }
@@ -54,9 +59,7 @@ export default function CryptoEvolutionChart({ symbol }: Props) {
         <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 11 }} interval="preserveStartEnd" />
         <YAxis
           tick={{ fill: "#71717a", fontSize: 11 }}
-          tickFormatter={(v: number) =>
-            new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact" }).format(v)
-          }
+          tickFormatter={(v: number) => formatUSD(v)}
           width={70}
         />
         <Tooltip
@@ -66,7 +69,10 @@ export default function CryptoEvolutionChart({ symbol }: Props) {
             borderRadius: "8px",
             fontSize: "12px",
           }}
-          formatter={(value: any) => [formatCurrency(Number(value)), symbol]}
+          formatter={(value: any) => [
+            new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value)),
+            symbol,
+          ]}
           labelStyle={{ color: "#a1a1aa" }}
         />
         <Line type="monotone" dataKey="preco" stroke="#8b5cf6" strokeWidth={2} dot={false} />

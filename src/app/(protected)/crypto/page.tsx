@@ -2,25 +2,28 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, ExternalLink, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Wallet, ExternalLink, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
 import EmptyState from "@/components/ui/EmptyState";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import WalletForm from "@/components/forms/WalletForm";
 import CryptoCompositionChart from "./CryptoCompositionChart";
 import CryptoEvolutionChart from "./CryptoEvolutionChart";
-import type { CryptoWallet, CryptoHolding } from "@/lib/services/crypto";
-import { formatCurrency, formatCrypto } from "@/lib/utils/format";
+import type { CryptoWallet } from "@/lib/services/crypto";
+import { formatCrypto } from "@/lib/utils/format";
 
 const TIPO_LABELS: Record<string, string> = {
   exchange: "Exchange",
   wallet_propria: "Wallet",
   cold_wallet: "Cold Wallet",
 };
+
+function formatUSD(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
 
 function PriceLastUpdate({ priceCache }: { priceCache: Record<string, any> }) {
   const entries = Object.values(priceCache);
@@ -40,7 +43,8 @@ function PriceLastUpdate({ priceCache }: { priceCache: Record<string, any> }) {
 export default function CryptoPage() {
   const [wallets, setWallets] = useState<CryptoWallet[]>([]);
   const [holdings, setHoldings] = useState<any[]>([]);
-  const [priceCache, setPriceCache] = useState<Record<string, { preco_usd: number; preco_brl: number }>>({});
+  const [priceCache, setPriceCache] = useState<Record<string, { preco_usd: number; preco_brl: number; atualizado_em?: string }>>({});
+  const [usdToBrl, setUsdToBrl] = useState(5.0);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingWallet, setEditingWallet] = useState<CryptoWallet | null>(null);
@@ -48,61 +52,62 @@ export default function CryptoPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [wRes, hRes, pRes] = await Promise.all([
+    const [wRes, hRes, pRes, rateRes] = await Promise.all([
       supabase.from("crypto_wallets").select("*").order("nome"),
       supabase.from("crypto_holdings").select("*, crypto_wallets(nome)").order("simbolo"),
       supabase.from("price_cache").select("*"),
+      supabase.from("exchange_rates").select("*").eq("par", "USD_BRL").single(),
     ]);
     if (wRes.data) setWallets(wRes.data);
     if (hRes.data) setHoldings(hRes.data);
     if (pRes.data) {
       const cache: Record<string, { preco_usd: number; preco_brl: number; atualizado_em?: string }> = {};
-      pRes.data.forEach((p) => { cache[p.simbolo] = { preco_usd: p.preco_usd ?? 0, preco_brl: p.preco_brl ?? 0, atualizado_em: p.atualizado_em }; });
+      pRes.data.forEach((p) => {
+        cache[p.simbolo] = { preco_usd: p.preco_usd ?? 0, preco_brl: p.preco_brl ?? 0, atualizado_em: p.atualizado_em };
+      });
       setPriceCache(cache);
     }
+    if (rateRes.data?.taxa) setUsdToBrl(rateRes.data.taxa);
     setLoading(false);
   }, [supabase]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   const handleEdit = (w: CryptoWallet) => { setEditingWallet(w); setModalOpen(true); };
-
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir esta carteira? Todas as transações e posições serão removidas.")) return;
+    if (!confirm("Excluir esta carteira? Transações e posições serão removidas.")) return;
     await supabase.from("crypto_wallets").delete().eq("id", id);
     refresh();
   };
-
   const handleFormSuccess = () => { setModalOpen(false); setEditingWallet(null); refresh(); };
 
-  // Calculate totals
-  const totalInvestido = holdings.reduce((sum: number, h: any) => {
-    return sum + h.quantidade * (h.preco_medio_brl ?? 0);
+  const brlToUsd = (brl: number) => (usdToBrl > 0 ? brl / usdToBrl : 0);
+
+  const totalInvestidoUSD = holdings.reduce((sum: number, h: any) => {
+    return sum + h.quantidade * brlToUsd(h.preco_medio_brl ?? 0);
   }, 0);
 
-  const totalAtual = holdings.reduce((sum: number, h: any) => {
-    const preco = priceCache[h.simbolo]?.preco_brl ?? h.preco_atual_brl ?? h.preco_medio_brl ?? 0;
-    return sum + h.quantidade * preco;
+  const totalAtualUSD = holdings.reduce((sum: number, h: any) => {
+    const precoUsd = priceCache[h.simbolo]?.preco_usd ?? brlToUsd(h.preco_atual_brl ?? h.preco_medio_brl ?? 0);
+    return sum + h.quantidade * precoUsd;
   }, 0);
 
-  const plTotal = totalAtual - totalInvestido;
-  const plPct = totalInvestido > 0 ? (plTotal / totalInvestido) * 100 : 0;
+  const plTotalUSD = totalAtualUSD - totalInvestidoUSD;
+  const plPct = totalInvestidoUSD > 0 ? (plTotalUSD / totalInvestidoUSD) * 100 : 0;
 
-  // Group holdings by symbol for composition chart
   const holdingsBySymbol: Record<string, { quantidade: number; valor: number; symbol: string }> = {};
   holdings.forEach((h: any) => {
-    const preco = priceCache[h.simbolo]?.preco_brl ?? h.preco_medio_brl ?? 0;
+    const precoUsd = priceCache[h.simbolo]?.preco_usd ?? brlToUsd(h.preco_medio_brl ?? 0);
     const key = h.simbolo;
     if (!holdingsBySymbol[key]) holdingsBySymbol[key] = { quantidade: 0, valor: 0, symbol: key };
     holdingsBySymbol[key].quantidade += h.quantidade;
-    holdingsBySymbol[key].valor += h.quantidade * preco;
+    holdingsBySymbol[key].valor += h.quantidade * precoUsd;
   });
 
-  // Wallet totals
   const walletTotals: Record<string, number> = {};
   holdings.forEach((h: any) => {
-    const preco = priceCache[h.simbolo]?.preco_brl ?? h.preco_medio_brl ?? 0;
-    walletTotals[h.wallet_id] = (walletTotals[h.wallet_id] ?? 0) + h.quantidade * preco;
+    const precoUsd = priceCache[h.simbolo]?.preco_usd ?? brlToUsd(h.preco_medio_brl ?? 0);
+    walletTotals[h.wallet_id] = (walletTotals[h.wallet_id] ?? 0) + h.quantidade * precoUsd;
   });
 
   return (
@@ -128,20 +133,19 @@ export default function CryptoPage() {
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 border-l-4 border-l-violet-500">
-          <p className="text-xs text-zinc-400">Valor Atual</p>
-          <p className="mt-1 text-lg font-bold text-white">{formatCurrency(totalAtual)}</p>
+          <p className="text-xs text-zinc-400">Valor Atual (USD)</p>
+          <p className="mt-1 text-lg font-bold text-white">{formatUSD(totalAtualUSD)}</p>
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 border-l-4 border-l-blue-500">
-          <p className="text-xs text-zinc-400">Total Investido</p>
-          <p className="mt-1 text-lg font-bold text-white">{formatCurrency(totalInvestido)}</p>
+          <p className="text-xs text-zinc-400">Total Investido (USD)</p>
+          <p className="mt-1 text-lg font-bold text-white">{formatUSD(totalInvestidoUSD)}</p>
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 border-l-4 border-l-emerald-500">
-          <p className="text-xs text-zinc-400">Lucro/Prejuízo</p>
-          <p className={`mt-1 text-lg font-bold ${plTotal >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {formatCurrency(plTotal)}
+          <p className="text-xs text-zinc-400">P&L</p>
+          <p className={`mt-1 text-lg font-bold ${plTotalUSD >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {formatUSD(plTotalUSD)}
           </p>
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 border-l-4 border-l-amber-500">
@@ -157,12 +161,11 @@ export default function CryptoPage() {
       ) : wallets.length === 0 ? (
         <EmptyState
           title="Nenhuma carteira cripto"
-          description="Adicione suas carteiras e exchanges para começar a registrar transações."
+          description="Adicione suas carteiras e exchanges para começar."
           action={<Button size="sm" onClick={() => { setEditingWallet(null); setModalOpen(true); }}><Plus size={16} /> Adicionar carteira</Button>}
         />
       ) : (
         <>
-          {/* Wallets grid */}
           <div>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Carteiras</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -202,7 +205,7 @@ export default function CryptoPage() {
                   <div className="mt-4 flex items-center justify-between">
                     <span className="text-xs text-zinc-500">Valor estimado</span>
                     <span className="text-sm font-semibold text-white">
-                      {formatCurrency(walletTotals[w.id] ?? 0)}
+                      {formatUSD(walletTotals[w.id] ?? 0)}
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-1 text-xs text-zinc-500 group-hover:text-violet-400 transition-colors">
@@ -213,11 +216,10 @@ export default function CryptoPage() {
             </div>
           </div>
 
-          {/* Charts */}
           {holdings.length > 0 && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card>
-                <h2 className="mb-4 text-sm font-semibold text-zinc-300">Alocação por Moeda</h2>
+                <h2 className="mb-4 text-sm font-semibold text-zinc-300">Alocação por Moeda (USD)</h2>
                 <CryptoCompositionChart
                   data={Object.values(holdingsBySymbol).map((h) => ({
                     name: h.symbol,
@@ -226,13 +228,12 @@ export default function CryptoPage() {
                 />
               </Card>
               <Card>
-                <h2 className="mb-4 text-sm font-semibold text-zinc-300">Evolução da Carteira (BTC)</h2>
-                <CryptoEvolutionChart symbol="BTC" />
+                <h2 className="mb-4 text-sm font-semibold text-zinc-300">Evolução do BTC (USD)</h2>
+                <CryptoEvolutionChart symbol="BTC" currency="USD" />
               </Card>
             </div>
           )}
 
-          {/* Holdings table */}
           {holdings.length > 0 && (
             <div>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">Posições</h2>
@@ -242,20 +243,21 @@ export default function CryptoPage() {
                     <tr className="border-b border-zinc-800 bg-zinc-900/50">
                       <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Ativo</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400">Carteira</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Quantidade</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Preço Médio</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Preço Atual</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Valor</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Qtd</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Preço Médio (USD)</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Preço Atual (USD)</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">Valor (USD)</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-zinc-400">P&L</th>
                     </tr>
                   </thead>
                   <tbody>
                     {holdings.filter((h: any) => h.quantidade > 0).map((h: any) => {
-                      const precoAtual = priceCache[h.simbolo]?.preco_brl ?? h.preco_medio_brl ?? 0;
-                      const valor = h.quantidade * precoAtual;
-                      const custo = h.quantidade * (h.preco_medio_brl ?? 0);
-                      const pl = valor - custo;
-                      const plPctItem = custo > 0 ? (pl / custo) * 100 : 0;
+                      const precoAtualUSD = priceCache[h.simbolo]?.preco_usd ?? brlToUsd(h.preco_atual_brl ?? h.preco_medio_brl ?? 0);
+                      const precoMedioUSD = brlToUsd(h.preco_medio_brl ?? 0);
+                      const valorUSD = h.quantidade * precoAtualUSD;
+                      const custoUSD = h.quantidade * precoMedioUSD;
+                      const pl = valorUSD - custoUSD;
+                      const plPctItem = custoUSD > 0 ? (pl / custoUSD) * 100 : 0;
                       return (
                         <tr key={h.id} className="border-b border-zinc-800/50 hover:bg-zinc-900/30">
                           <td className="px-4 py-3">
@@ -263,11 +265,11 @@ export default function CryptoPage() {
                           </td>
                           <td className="px-4 py-3 text-zinc-400">{h.crypto_wallets?.nome}</td>
                           <td className="px-4 py-3 text-right text-zinc-300">{formatCrypto(h.quantidade)}</td>
-                          <td className="px-4 py-3 text-right text-zinc-400">{formatCurrency(h.preco_medio_brl ?? 0)}</td>
-                          <td className="px-4 py-3 text-right text-zinc-300">{formatCurrency(precoAtual)}</td>
-                          <td className="px-4 py-3 text-right font-medium text-white">{formatCurrency(valor)}</td>
+                          <td className="px-4 py-3 text-right text-zinc-400">{formatUSD(precoMedioUSD)}</td>
+                          <td className="px-4 py-3 text-right text-zinc-300">{formatUSD(precoAtualUSD)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-white">{formatUSD(valorUSD)}</td>
                           <td className={`px-4 py-3 text-right font-medium ${pl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {pl >= 0 ? "+" : ""}{formatCurrency(pl)} ({plPctItem >= 0 ? "+" : ""}{plPctItem.toFixed(1)}%)
+                            {pl >= 0 ? "+" : ""}{formatUSD(pl)} ({plPctItem >= 0 ? "+" : ""}{plPctItem.toFixed(1)}%)
                           </td>
                         </tr>
                       );
