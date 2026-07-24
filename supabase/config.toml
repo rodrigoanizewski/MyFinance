@@ -1,15 +1,8 @@
-# Supabase config
-# Referência: https://supabase.com/docs/reference/cli/config
-
 project_id = "myfinance"
-
-[db]
-# Porta local do Postgres (supabase start)
-port = 54322
 
 [auth]
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/auth/callback"]
 
-[edge_functions]
+[functions.update-crypto-prices]
 enabled = true

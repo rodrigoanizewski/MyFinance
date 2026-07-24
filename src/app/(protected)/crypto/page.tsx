@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, ExternalLink, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
@@ -21,6 +21,21 @@ const TIPO_LABELS: Record<string, string> = {
   wallet_propria: "Wallet",
   cold_wallet: "Cold Wallet",
 };
+
+function PriceLastUpdate({ priceCache }: { priceCache: Record<string, any> }) {
+  const entries = Object.values(priceCache);
+  if (entries.length === 0) return <span className="text-xs text-amber-400">Preços não sincronizados</span>;
+  const lastUpdate = entries
+    .map((p: any) => p.atualizado_em ? new Date(p.atualizado_em).getTime() : 0)
+    .reduce((max: number, t: number) => Math.max(max, t), 0);
+  const minutesAgo = lastUpdate > 0 ? Math.round((Date.now() - lastUpdate) / 60000) : null;
+  if (minutesAgo === null) return <span className="text-xs text-amber-400">Preços desatualizados</span>;
+  return (
+    <span className="text-xs text-zinc-500">
+      Atualizado {minutesAgo === 0 ? "agora" : `há ${minutesAgo}min`}
+    </span>
+  );
+}
 
 export default function CryptoPage() {
   const [wallets, setWallets] = useState<CryptoWallet[]>([]);
@@ -41,8 +56,8 @@ export default function CryptoPage() {
     if (wRes.data) setWallets(wRes.data);
     if (hRes.data) setHoldings(hRes.data);
     if (pRes.data) {
-      const cache: Record<string, { preco_usd: number; preco_brl: number }> = {};
-      pRes.data.forEach((p) => { cache[p.simbolo] = { preco_usd: p.preco_usd ?? 0, preco_brl: p.preco_brl ?? 0 }; });
+      const cache: Record<string, { preco_usd: number; preco_brl: number; atualizado_em?: string }> = {};
+      pRes.data.forEach((p) => { cache[p.simbolo] = { preco_usd: p.preco_usd ?? 0, preco_brl: p.preco_brl ?? 0, atualizado_em: p.atualizado_em }; });
       setPriceCache(cache);
     }
     setLoading(false);
@@ -94,9 +109,23 @@ export default function CryptoPage() {
     <div className="p-4 lg:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-white">Cripto</h1>
-        <Button onClick={() => { setEditingWallet(null); setModalOpen(true); }} size="sm">
-          <Plus size={16} /> Nova carteira
-        </Button>
+        <div className="flex items-center gap-2">
+          <PriceLastUpdate priceCache={priceCache} />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              await fetch("/api/update-prices");
+              refresh();
+            }}
+          >
+            <RefreshCw size={14} />
+            Sincronizar
+          </Button>
+          <Button onClick={() => { setEditingWallet(null); setModalOpen(true); }} size="sm">
+            <Plus size={16} /> Nova carteira
+          </Button>
+        </div>
       </div>
 
       {/* Summary cards */}
