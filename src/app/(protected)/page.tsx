@@ -25,10 +25,7 @@ export default async function DashboardPage() {
     supabase.from("recurring_transactions").select("*").eq("ativo", true),
   ]);
 
-  const totalFiat =
-    accounts
-      ?.filter((a) => ["corrente", "poupanca", "corretora"].includes(a.tipo))
-      .reduce((sum) => sum, 0) ?? 0;
+  const totalFiat = 0;
 
   const totalInvestido =
     investments?.reduce(
@@ -117,7 +114,7 @@ export default async function DashboardPage() {
       const diffMonths =
         (targetDate.getFullYear() - now.getFullYear()) * 12 +
         (targetDate.getMonth() - now.getMonth());
-      if (diffMonths > 0 && diffMonths <= 6) {
+      if (diffMonths > 0 && diffMonths <= 12) {
         alertas.push(
           `${g.nome}: faltam ${formatCurrency(gap)} (${diffMonths} ${diffMonths === 1 ? "mês" : "meses"})`,
         );
