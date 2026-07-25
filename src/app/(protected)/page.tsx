@@ -69,22 +69,20 @@ export default async function DashboardPage() {
   const totalDebts =
     debts?.reduce((sum, d) => sum + d.valor_restante, 0) ?? 0;
 
-  const alertas: string[] = [];
+  const alertas: { text: string; type: "danger" | "warning" | "info" }[] = [];
 
   if (liquidezPct < 30 && patrimonioTotal > 0) {
-    alertas.push(`Liquidez baixa: ${liquidezPct.toFixed(0)}% do patrimônio`);
+    alertas.push({ text: `Liquidez baixa: ${liquidezPct.toFixed(0)}% do patrimônio`, type: "warning" });
   }
 
   subscriptions?.forEach((s) => {
-    if (s.proxima_data) {
+    if (s.proxima_data && s.ativo) {
       const nextDate = new Date(s.proxima_data);
-      const diffDays = Math.ceil(
-        (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      if (diffDays >= 0 && diffDays <= 7) {
-        alertas.push(
-          `${s.nome} vence em ${diffDays === 0 ? "hoje" : `${diffDays} dia(s)`}`,
-        );
+      const diffDays = Math.ceil((nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        alertas.push({ text: `${s.nome}: venceu há ${Math.abs(diffDays)} dia(s)`, type: "danger" });
+      } else if (diffDays <= 7) {
+        alertas.push({ text: `${s.nome}: vence em ${diffDays === 0 ? "hoje" : `${diffDays} dia(s)`}`, type: "warning" });
       }
     }
   });
@@ -92,35 +90,38 @@ export default async function DashboardPage() {
   debts?.forEach((d) => {
     if (d.vencimento) {
       const vencDate = new Date(d.vencimento);
-      const diffDays = Math.ceil(
-        (vencDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      if (diffDays >= 0 && diffDays <= 15) {
-        alertas.push(
-          `Parcela de ${d.nome} vence em ${diffDays === 0 ? "hoje" : `${diffDays} dia(s)`}`,
-        );
+      const diffDays = Math.ceil((vencDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        alertas.push({ text: `Dívida ${d.nome}: parcela atrasada há ${Math.abs(diffDays)} dia(s)`, type: "danger" });
+      } else if (diffDays <= 15) {
+        alertas.push({ text: `Dívida ${d.nome}: parcela vence em ${diffDays === 0 ? "hoje" : `${diffDays} dia(s)`}`, type: "warning" });
       }
     }
   });
 
   goals?.forEach((g) => {
     const gap = g.valor_alvo - g.valor_atual;
-    if (
-      g.data_alvo &&
-      gap > 0 &&
-      g.valor_alvo > 0
-    ) {
+    if (g.data_alvo && gap > 0 && g.valor_alvo > 0) {
       const targetDate = new Date(g.data_alvo);
       const diffMonths =
         (targetDate.getFullYear() - now.getFullYear()) * 12 +
         (targetDate.getMonth() - now.getMonth());
-      if (diffMonths > 0 && diffMonths <= 12) {
-        alertas.push(
-          `${g.nome}: faltam ${formatCurrency(gap)} (${diffMonths} ${diffMonths === 1 ? "mês" : "meses"})`,
-        );
+      if (diffMonths <= 0) {
+        alertas.push({ text: `${g.nome}: meta vencida! Faltam ${formatCurrency(gap)}`, type: "danger" });
+      } else if (diffMonths <= 12) {
+        alertas.push({ text: `${g.nome}: faltam ${formatCurrency(gap)} (${diffMonths} ${diffMonths === 1 ? "mês" : "meses"})`, type: "info" });
       }
     }
   });
+
+  const dangerAlerts = alertas.filter((a) => a.type === "danger");
+  const warningAlerts = alertas.filter((a) => a.type === "warning");
+
+  const alertColorMap: Record<string, string> = {
+    danger: "border-l-red-500 bg-red-900/10 text-red-400",
+    warning: "border-l-amber-500 bg-amber-900/10 text-amber-400",
+    info: "border-l-blue-500 bg-blue-900/10 text-blue-400",
+  };
 
   const summaryCards = [
     { label: "Patrimônio Total", value: formatCurrency(patrimonioTotal), color: "emerald" },
@@ -186,20 +187,31 @@ export default async function DashboardPage() {
             <Card>
               <h2 className="text-sm font-semibold text-zinc-300">
                 Pontos de Atenção
+                {alertas.length > 0 && (
+                  <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-zinc-800 px-1.5 text-[10px] font-bold text-zinc-300">
+                    {alertas.length}
+                  </span>
+                )}
               </h2>
               {alertas.length === 0 ? (
                 <p className="mt-4 text-sm text-zinc-500">
-                  Nenhum alerta no momento.
+                  Tudo em ordem. Nenhum alerta no momento.
                 </p>
               ) : (
                 <ul className="mt-3 space-y-2">
-                  {alertas.map((a, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 rounded-lg bg-amber-900/20 px-3 py-2 text-sm text-amber-400"
-                    >
-                      <span className="mt-0.5 shrink-0">!</span>
-                      {a}
+                  {dangerAlerts.length > 0 && dangerAlerts.map((a, i) => (
+                    <li key={`d-${i}`} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm border-l-2 ${alertColorMap.danger}`}>
+                      <span className="mt-0.5 shrink-0">!</span> {a.text}
+                    </li>
+                  ))}
+                  {warningAlerts.length > 0 && warningAlerts.map((a, i) => (
+                    <li key={`w-${i}`} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm border-l-2 ${alertColorMap.warning}`}>
+                      <span className="mt-0.5 shrink-0">!</span> {a.text}
+                    </li>
+                  ))}
+                  {alertas.filter((a) => a.type === "info").map((a, i) => (
+                    <li key={`i-${i}`} className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm border-l-2 ${alertColorMap.info}`}>
+                      {a.text}
                     </li>
                   ))}
                 </ul>

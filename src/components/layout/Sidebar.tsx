@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import AlertBadge from "./AlertBadge";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -52,10 +53,11 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden w-64 flex-col border-r border-zinc-800 bg-zinc-950 lg:flex">
-      <div className="flex h-14 items-center border-b border-zinc-800 px-4">
+      <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
         <Link href="/" className="text-lg font-bold tracking-tight text-white">
           MyFinance
         </Link>
+        <AlertBadge />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {NAV_ITEMS.map((item) => {
