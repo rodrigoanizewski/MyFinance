@@ -10,7 +10,6 @@ import {
   CreditCard,
   CalendarSync,
   Target,
-  Upload,
   Settings,
   LogOut,
   type LucideIcon,
@@ -26,7 +25,6 @@ const ICON_MAP: Record<string, LucideIcon> = {
   CreditCard,
   CalendarSync,
   Target,
-  Upload,
   Settings,
 };
 
@@ -38,7 +36,6 @@ const NAV_ITEMS = [
   { href: "/debts", label: "Dívidas", icon: "CreditCard" },
   { href: "/subscriptions", label: "Assinaturas", icon: "CalendarSync" },
   { href: "/goals", label: "Objetivos", icon: "Target" },
-  { href: "/import", label: "Importar", icon: "Upload" },
   { href: "/config", label: "Configurações", icon: "Settings" },
 ];
 

@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import PwaRegister from "@/components/layout/PwaRegister";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,21 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MyFinance — Controle Financeiro Pessoal",
-  description: "App de controle financeiro pessoal completo",
+  description: "App de controle financeiro pessoal completo — patrimônio, cripto, transações e mais",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "MyFinance",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#059669",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -28,7 +42,13 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+      </head>
+      <body className="min-h-full">
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

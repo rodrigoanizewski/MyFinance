@@ -9,7 +9,6 @@ const protectedPaths = [
   "/debts",
   "/subscriptions",
   "/goals",
-  "/import",
   "/config",
 ];
 
