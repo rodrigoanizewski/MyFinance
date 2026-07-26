@@ -1,0 +1,17 @@
+{
+  "/(protected)/config/page": "app/(protected)/config/page.js",
+  "/(protected)/crypto/[walletId]/page": "app/(protected)/crypto/[walletId]/page.js",
+  "/(protected)/crypto/page": "app/(protected)/crypto/page.js",
+  "/(protected)/debts/page": "app/(protected)/debts/page.js",
+  "/(protected)/goals/page": "app/(protected)/goals/page.js",
+  "/(protected)/page": "app/(protected)/page.js",
+  "/(protected)/patrimonio/page": "app/(protected)/patrimonio/page.js",
+  "/(protected)/subscriptions/page": "app/(protected)/subscriptions/page.js",
+  "/(protected)/transactions/page": "app/(protected)/transactions/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/update-prices/route": "app/api/update-prices/route.js",
+  "/auth/callback/route": "app/auth/callback/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js"
+}

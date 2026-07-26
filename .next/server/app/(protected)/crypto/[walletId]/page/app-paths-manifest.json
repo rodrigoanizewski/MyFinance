@@ -1,0 +1,3 @@
+{
+  "/(protected)/crypto/[walletId]/page": "app/(protected)/crypto/[walletId]/page.js"
+}
