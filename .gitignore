@@ -3,6 +3,7 @@
 Thumbs.db
 
 # Ignorar dependências e compilações
+.next/
 node_modules/
 dist/
 build/
